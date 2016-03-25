@@ -5,6 +5,23 @@
 #import "RCTConvert.h"
 #import "RCTEventDispatcher.h"
 #import "RCTUtils.h"
+#import <JavaScriptCore/JavaScriptCore.h>
+
+@implementation  FuncPointer
+@synthesize completeCallbacks;
+
++(FuncPointer*) sharedInstance {
+    static dispatch_once_t once;
+    static id sharedInstance;
+    dispatch_once(&once, ^{
+        sharedInstance = [[self alloc] init];
+        if (sharedInstance) {
+            ((FuncPointer*)sharedInstance).completeCallbacks = [[NSMutableDictionary alloc] init];
+        }
+    });
+    return sharedInstance;
+}
+@end
 
 NSString *const RNNotificationActionReceived = @"NotificationActionReceived";
 
@@ -41,7 +58,6 @@ RCT_EXPORT_MODULE();
 - (id)init
 {
     if (self = [super init]) {
-        self.completeCallbacks = [[NSMutableDictionary alloc] init];
         return self;
     } else {
         return nil;
@@ -95,6 +111,12 @@ RCT_EXPORT_MODULE();
     return category;
 }
 
+RCT_EXPORT_METHOD(callDone)
+{
+    void (^responseBlock)() = [[FuncPointer sharedInstance].completeCallbacks objectForKey:@"1"];
+    responseBlock();
+}
+
 RCT_EXPORT_METHOD(updateCategories:(NSArray *)json)
 {
     NSMutableArray *categories = [[NSMutableArray alloc] init];
@@ -114,14 +136,16 @@ RCT_EXPORT_METHOD(updateCategories:(NSArray *)json)
 // Handle notifications received by the app delegate and passed to the following class methods
 + (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forLocalNotification:(UILocalNotification *)notification withResponseInfo:(NSDictionary *)responseInfo completionHandler:(void (^)())completionHandler;
 {
+    NSLog(@"handleActionWithIdentifier");
     [self emitNotificationActionForIdentifier:identifier source:@"local" responseInfo:responseInfo userInfo:notification.userInfo];
     completionHandler();
 }
 
 + (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forRemoteNotification:(NSDictionary *)userInfo withResponseInfo:(NSDictionary *)responseInfo completionHandler:(void (^)())completionHandler
 {
+    NSLog(@"handleActionWithIdentifier");
+    [[FuncPointer sharedInstance].completeCallbacks setObject:completionHandler forKey:@"1"];
     [self emitNotificationActionForIdentifier:identifier source:@"remote" responseInfo:responseInfo userInfo:userInfo];
-    completionHandler();
 }
 
 + (void)emitNotificationActionForIdentifier:(NSString *)identifier source:(NSString *)source responseInfo:(NSDictionary *)responseInfo userInfo:(NSDictionary *)userInfo
